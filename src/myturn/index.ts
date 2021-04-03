@@ -1,27 +1,22 @@
-// import checkEligibility, { EligibilityResponse } from "./api/eligibility";
+import dayjs from "dayjs";
 import searchLocations, {
-  LocationSearchResponse,
   Location,
+  LocationSearchResponse,
 } from "./api/locationSearch";
-import checkLocationAvailability, {
+import getLocationAvailableDates, {
   LocationAvailabilityResponse,
-  LocationAvailabilityResponseSlot,
-} from "./api/locationAvailability";
-import getSlots, {
-  SlotAvailabilityResponseAvailableSlot,
-} from "./api/getSlots";
-import reserveSlot, { ReserveSlotSuccessResponse } from "./api/reserveSlot";
+} from "./api/getLocationAvailableDates";
+import getLocationAvailableSlots, {
+  LocationAvailableSlotsResponse,
+} from "./api/getLocationAvailableSlots";
+import reserveSlot from "./api/reserveSlot";
 import { createLogger } from "../logger";
-import sendChatAlert from "../telegram";
 
-const axios = require("axios");
-const dayjs = require("dayjs");
-dayjs.extend(require("dayjs/plugin/utc"));
+import state from "./state";
 
 const logger = createLogger("myturn");
 
 let isChecking = false;
-let globalAvailability: { [locationExtId: string]: boolean } = {};
 
 async function runCheck() {
   if (isChecking) {
@@ -74,22 +69,23 @@ async function runCheck() {
   });
 
   if (availableLocations.length) {
-    availableLocations.forEach((l) => runAvailabilityCheck(l));
-  } else if (Object.values(globalAvailability).some((a) => a)) {
-    globalAvailability = {};
-    sendChatAlert(
-      "No more appointments are available right now. You will be notified when they become available again."
-    );
+    // run availability
+    availableLocations.forEach((l) => queryLocation(l));
+  } else if (state.anyLocationIsAvailable()) {
+    state.markAllAsUnavailable();
+    return;
+  } else {
+    return;
   }
 
   isChecking = false;
 }
 
-async function runAvailabilityCheck(location: Location) {
+async function queryLocation(location: Location) {
   const { extId, name } = location;
   let availability: LocationAvailabilityResponse;
   try {
-    availability = await checkLocationAvailability(extId, location.vaccineData);
+    availability = await getLocationAvailableDates(extId, location.vaccineData);
   } catch (e) {
     logger.error({
       message: `Error searching for availability at ${name}, will retry`,
@@ -106,13 +102,12 @@ async function runAvailabilityCheck(location: Location) {
       message: `No availability at ${name}.`,
       location,
     });
-    globalAvailability[extId] = false;
+    state.markLocationAsUnavailable(location);
     return;
   }
 
-  // only use one day.
-  checkForSlotAvailability(location, availableDays[0]);
-  // availableDays.forEach((slot) => checkForSlotAvailability(location, slot));
+  // check slot availability
+  const dayToCheck = availableDays[availableDays.length - 1];
 
   logger.info({
     message: `Availability at ${name} on ${availableDays
@@ -121,15 +116,13 @@ async function runAvailabilityCheck(location: Location) {
     availableDays,
     location,
   });
-}
 
-async function checkForSlotAvailability(
-  location: Location,
-  slot: LocationAvailabilityResponseSlot
-) {
-  let availabilityReq;
+  let availableSlotsReq: LocationAvailableSlotsResponse;
   try {
-    availabilityReq = await getSlots(location.extId, slot);
+    availableSlotsReq = await getLocationAvailableSlots(
+      location.extId,
+      dayToCheck
+    );
   } catch (e) {
     logger.error({
       message: `Error checking for slot availability at ${location.name}`,
@@ -139,13 +132,8 @@ async function checkForSlotAvailability(
     return;
   }
 
-  const { slotsWithAvailability } = availabilityReq;
-
-  if (!slotsWithAvailability.length && globalAvailability[location.extId]) {
-    globalAvailability[location.extId] = false;
-    sendChatAlert(
-      `No more appointments are available at ${location.name}. You'll be notified when they open up again.`
-    );
+  if (!availableSlotsReq.slotsWithAvailability) {
+    state.markLocationAsUnavailable(location);
     logger.info({
       message: `No slots available at ${location.name}`,
       location,
@@ -153,71 +141,45 @@ async function checkForSlotAvailability(
     return;
   }
 
-  attemptToReserveSlot(location, slot, slotsWithAvailability[0]);
-}
+  // slot appears to be available, reserve it
+  const slotToReserve =
+    availableSlotsReq.slotsWithAvailability[
+      availableSlotsReq.slotsWithAvailability.length - 1
+    ];
 
-async function attemptToReserveSlot(
-  location: Location,
-  locationSlot: LocationAvailabilityResponseSlot,
-  slot: SlotAvailabilityResponseAvailableSlot
-) {
-  const reserveReq = await reserveSlot(
-    locationSlot.date,
-    slot.localStartTime,
+  const slotReservation = await reserveSlot(
+    dayToCheck.date,
+    slotToReserve.localStartTime,
     location.extId,
-    locationSlot.vaccineData
+    dayToCheck.vaccineData
   );
 
-  if ("errorType" in reserveReq) {
-    // error
+  if ("errorType" in slotReservation) {
+    if (slotReservation.errorType === "location_no_capacity") {
+      state.markLocationAsUnavailable(location);
+      return;
+    }
+
     logger.warn({
-      message: `Error booking a slot at ${location.name} for ${slot.localStartTime} on ${locationSlot.date}: ${reserveReq.errorType}`,
+      message: `Error booking a slot at ${location.name} for ${slotToReserve.localStartTime} on ${dayToCheck.date}: ${slotReservation.errorType}`,
       location,
-      slot,
-      locationSlot,
-      reserveReq,
-    });
-    return;
-  } else {
-    alert(location, reserveReq, locationSlot);
-    logger.info({
-      message: `Slot available: ${location.name} for ${slot.localStartTime} on ${locationSlot.date}`,
-      location,
-      slot,
-      locationSlot,
-      reserveReq,
+      slotReservation,
+      dayToCheck,
+      slotToReserve,
     });
     return;
   }
-}
 
-function alert(
-  location: Location,
-  slot: ReserveSlotSuccessResponse,
-  locationSlot: LocationAvailabilityResponseSlot
-) {
-  if (globalAvailability[location.extId]) {
-    return;
-  }
+  // slot is available and unfortunately reserved to us for 15 mins :(
+  state.markLocationAsAvailable(location, dayToCheck);
+  logger.info({
+    message: `Slot available at ${location.name} (${location.extId}) on ${dayToCheck.date} at ${slotToReserve.localStartTime}.
 
-  globalAvailability[location.extId] = true;
-
-  sendChatAlert(`Appointments are available at ${location.name}.
-  
-The next available date is ${dayjs(locationSlot.date).format(
-    "dddd MMMM DD, YYYY"
-  )}.`);
-
-  axios({
-    method: "GET",
-    url:
-      "https://maker.ifttt.com/trigger/vaccine_available/with/key/TIObZpkJpD2HBg0_Hk83e",
-    data: {
-      value1: location.name,
-      value2: dayjs().format(),
-      value3: JSON.stringify(slot),
-    },
+Book now at https://myturn.ca.gov.`,
+    slotReservation,
   });
+
+  isChecking = false;
 }
 
 runCheck();

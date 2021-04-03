@@ -4,7 +4,7 @@ import utc from "dayjs/plugin/utc";
 
 dayjs.extend(utc);
 
-export interface LocationAvailabilityResponseSlot {
+export interface LocationAvailabilityDate {
   date: string;
   available: boolean;
   vaccineData: string;
@@ -13,10 +13,10 @@ export interface LocationAvailabilityResponseSlot {
 export interface LocationAvailabilityResponse {
   vaccineData: string;
   locationExtId: string;
-  availability: LocationAvailabilityResponseSlot[];
+  availability: LocationAvailabilityDate[];
 }
 
-export default async function checkLocationAvailability(
+export default async function getLocationAvailableDates(
   extId: string,
   vaccineData: string
 ) {

@@ -1,5 +1,8 @@
 import { Telegraf } from "telegraf";
 import { createLogger } from "./logger";
+import { Location } from "./myturn/api/locationSearch";
+import { LocationAvailabilityDate } from "./myturn/api/getLocationAvailableDates";
+import dayjs from "dayjs";
 
 const logger = createLogger("telegram");
 
@@ -26,7 +29,23 @@ bot.help((ctx) => {
   ctx.reply("This bot only works in approved Channels. Sorry.");
 });
 
-export default function sendChatAlert(message: string) {
+export function sendNoLongerAvailableAtLocation(location: Location) {
+  sendChatAlert(`No more appointments are available at ${location.name}.
+You will be notified when more appointments are available.`);
+}
+
+export function sendAvailableAtLocation(
+  location: Location,
+  availabilityDate: LocationAvailabilityDate
+) {
+  sendChatAlert(`Appointments are available at ${location.name}!
+  
+The next available date is ${dayjs(availabilityDate.date).format(
+    "dddd MMMM DD, YYYY"
+  )}.`);
+}
+
+function sendChatAlert(message: string) {
   // @ts-ignore
   bot.telegram.sendMessage(channelId, message);
 }
