@@ -42,7 +42,9 @@ export function sendAvailableAtLocation(
   
 The next available date is ${dayjs(availabilityDate.date).format(
     "dddd MMMM DD, YYYY"
-  )}.`);
+  )}.
+  
+Book now at https://myturn.ca.gov.`);
 }
 
 function sendChatAlert(message: string) {

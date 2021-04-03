@@ -173,9 +173,7 @@ async function queryLocation(location: Location) {
   // slot is available and unfortunately reserved to us for 15 mins :(
   state.markLocationAsAvailable(location, dayToCheck);
   logger.info({
-    message: `Slot available at ${location.name} (${location.extId}) on ${dayToCheck.date} at ${slotToReserve.localStartTime}.
-
-Book now at https://myturn.ca.gov.`,
+    message: `Slot available at ${location.name} (${location.extId}) on ${dayToCheck.date} at ${slotToReserve.localStartTime}.`,
     slotReservation,
   });
 

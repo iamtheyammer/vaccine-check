@@ -2,10 +2,6 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="e00dc57c-eafe-43d1-b0c3-a31385f86dcf" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/vaccine-check.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vaccine-check.iml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/myturn/api/getSlots.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/myturn/api/getLocationAvailableSlots.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/myturn/api/locationAvailability.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/myturn/api/getLocationAvailableDates.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/myturn/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/myturn/index.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/telegram.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/telegram.ts" afterDir="false" />
     </list>
