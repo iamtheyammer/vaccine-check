@@ -4,6 +4,7 @@ import {
   sendAvailableAtLocation,
   sendNoLongerAvailableAtLocation,
 } from "../telegram";
+import { LocationAvailableSlotsResponseSlot } from "./api/getLocationAvailableSlots";
 
 class State {
   private readonly globalAvailability: {
@@ -26,11 +27,12 @@ class State {
 
   markLocationAsAvailable(
     location: Location,
-    availabilityDate: LocationAvailabilityDate
+    availabilityDate: LocationAvailabilityDate,
+    slotsWithAvailability: LocationAvailableSlotsResponseSlot[]
   ) {
     // notify if this changed
     if (!this.locationIsAvailable(location.extId)) {
-      sendAvailableAtLocation(location, availabilityDate);
+      sendAvailableAtLocation(location, availabilityDate, slotsWithAvailability);
     }
 
     this.globalAvailability[location.extId] = true;

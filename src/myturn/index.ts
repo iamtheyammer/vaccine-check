@@ -128,10 +128,19 @@ async function queryLocation(location: Location) {
     return;
   }
 
+  if (availableSlotsReq.slotsWithAvailability.length < 2) {
+    state.markLocationAsUnavailable(location);
+    logger.info({
+      message: `Only one slot available at ${location.name}`,
+      location,
+    });
+    return;
+  }
+
   // slot appears to be available, reserve it
   const slotToReserve =
     availableSlotsReq.slotsWithAvailability[
-      availableSlotsReq.slotsWithAvailability.length - 1
+    availableSlotsReq.slotsWithAvailability.length - 1
     ];
 
   const slotReservation = await reserveSlot(
@@ -158,9 +167,9 @@ async function queryLocation(location: Location) {
   }
 
   // slot is available and unfortunately reserved to us for 15 mins :(
-  state.markLocationAsAvailable(location, dayToCheck);
+  state.markLocationAsAvailable(location, dayToCheck, availableSlotsReq.slotsWithAvailability);
   logger.info({
-    message: `Slot available at ${location.name} (${location.extId}) on ${dayToCheck.date} at ${slotToReserve.localStartTime}.`,
+    message: `${availableSlotsReq.slotsWithAvailability.length} time slots available at ${location.name} (${location.extId}) on ${dayToCheck.date} at ${slotToReserve.localStartTime}.`,
     slotReservation,
   });
 }

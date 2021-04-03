@@ -3,6 +3,7 @@ import { createLogger } from "./logger";
 import { Location } from "./myturn/api/locationSearch";
 import { LocationAvailabilityDate } from "./myturn/api/getLocationAvailableDates";
 import dayjs from "dayjs";
+import { LocationAvailableSlotsResponseSlot } from "./myturn/api/getLocationAvailableSlots";
 
 const logger = createLogger("telegram");
 
@@ -36,9 +37,10 @@ You will be notified when more appointments are available.`);
 
 export function sendAvailableAtLocation(
   location: Location,
-  availabilityDate: LocationAvailabilityDate
+  availabilityDate: LocationAvailabilityDate,
+  slotsWithAvailability: LocationAvailableSlotsResponseSlot[]
 ) {
-  sendChatAlert(`Appointments are available at ${location.name}!
+  sendChatAlert(`Up to ${slotsWithAvailability.length} appointments are available at ${location.name}!
   
 The next available date is ${dayjs(availabilityDate.date).format(
     "dddd MMMM DD, YYYY"
