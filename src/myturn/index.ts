@@ -12,6 +12,7 @@ import getSlots, {
 } from "./api/getSlots";
 import reserveSlot, { ReserveSlotSuccessResponse } from "./api/reserveSlot";
 import { createLogger } from "../logger";
+import sendChatAlert from "../telegram";
 
 const axios = require("axios");
 const dayjs = require("dayjs");
@@ -20,6 +21,7 @@ dayjs.extend(require("dayjs/plugin/utc"));
 const logger = createLogger("myturn");
 
 let isChecking = false;
+let globalAvailability: { [locationExtId: string]: boolean } = {};
 
 async function runCheck() {
   if (isChecking) {
@@ -73,6 +75,11 @@ async function runCheck() {
 
   if (availableLocations.length) {
     availableLocations.forEach((l) => runAvailabilityCheck(l));
+  } else if (Object.values(globalAvailability).some((a) => a)) {
+    globalAvailability = {};
+    sendChatAlert(
+      "No more appointments are available right now. You will be notified when they become available again."
+    );
   }
 
   isChecking = false;
@@ -99,10 +106,13 @@ async function runAvailabilityCheck(location: Location) {
       message: `No availability at ${name}.`,
       location,
     });
+    globalAvailability[extId] = false;
     return;
   }
 
-  availableDays.forEach((slot) => checkForSlotAvailability(location, slot));
+  // only use one day.
+  checkForSlotAvailability(location, availableDays[0]);
+  // availableDays.forEach((slot) => checkForSlotAvailability(location, slot));
 
   logger.info({
     message: `Availability at ${name} on ${availableDays
@@ -131,7 +141,11 @@ async function checkForSlotAvailability(
 
   const { slotsWithAvailability } = availabilityReq;
 
-  if (!slotsWithAvailability.length) {
+  if (!slotsWithAvailability.length && globalAvailability[location.extId]) {
+    globalAvailability[location.extId] = false;
+    sendChatAlert(
+      `No more appointments are available at ${location.name}. You'll be notified when they open up again.`
+    );
     logger.info({
       message: `No slots available at ${location.name}`,
       location,
@@ -139,9 +153,7 @@ async function checkForSlotAvailability(
     return;
   }
 
-  slotsWithAvailability
-    .slice(0, 3)
-    .forEach((s) => attemptToReserveSlot(location, slot, s));
+  attemptToReserveSlot(location, slot, slotsWithAvailability[0]);
 }
 
 async function attemptToReserveSlot(
@@ -167,7 +179,7 @@ async function attemptToReserveSlot(
     });
     return;
   } else {
-    alert(location.name, reserveReq);
+    alert(location, reserveReq, locationSlot);
     logger.info({
       message: `Slot available: ${location.name} for ${slot.localStartTime} on ${locationSlot.date}`,
       location,
@@ -179,31 +191,35 @@ async function attemptToReserveSlot(
   }
 }
 
-async function check() {
-  try {
-    await runCheck();
-  } catch (e) {
-    logger.error({
-      message: "Unknown error while searching, will retry",
-      error: e,
-    });
-    isChecking = false;
+function alert(
+  location: Location,
+  slot: ReserveSlotSuccessResponse,
+  locationSlot: LocationAvailabilityResponseSlot
+) {
+  if (globalAvailability[location.extId]) {
+    return;
   }
+
+  globalAvailability[location.extId] = true;
+
+  sendChatAlert(`Appointments are available at ${location.name}.
+  
+The next available date is ${dayjs(locationSlot.date).format(
+    "dddd MMMM DD, YYYY"
+  )}.`);
+
+  axios({
+    method: "GET",
+    url:
+      "https://maker.ifttt.com/trigger/vaccine_available/with/key/TIObZpkJpD2HBg0_Hk83e",
+    data: {
+      value1: location.name,
+      value2: dayjs().format(),
+      value3: JSON.stringify(slot),
+    },
+  });
 }
 
-function alert(locationName: string, slot: ReserveSlotSuccessResponse) {
-  // axios({
-  //   method: "GET",
-  //   url:
-  //     "https://maker.ifttt.com/trigger/vaccine_available/with/key/TIObZpkJpD2HBg0_Hk83e",
-  //   data: {
-  //     value1: locationName,
-  //     value2: dayjs().format(),
-  //     value3: JSON.stringify(slot),
-  //   },
-  // });
-}
+runCheck();
 
-check();
-
-// setInterval(check, 5000);
+setInterval(runCheck, 60000);
