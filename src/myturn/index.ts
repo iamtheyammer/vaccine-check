@@ -16,18 +16,7 @@ import state from "./state";
 
 const logger = createLogger("myturn");
 
-let isChecking = false;
-
 async function runCheck() {
-  if (isChecking) {
-    logger.log({
-      level: "warn",
-      message: "Still checking, will retry later",
-    });
-    return;
-  }
-  isChecking = true;
-
   // let eligibilityResponse: EligibilityResponse;
   // try {
   //   eligibilityResponse = await checkEligibility();
@@ -77,8 +66,6 @@ async function runCheck() {
   } else {
     return;
   }
-
-  isChecking = false;
 }
 
 async function queryLocation(location: Location) {
@@ -176,8 +163,6 @@ async function queryLocation(location: Location) {
     message: `Slot available at ${location.name} (${location.extId}) on ${dayToCheck.date} at ${slotToReserve.localStartTime}.`,
     slotReservation,
   });
-
-  isChecking = false;
 }
 
 runCheck();
