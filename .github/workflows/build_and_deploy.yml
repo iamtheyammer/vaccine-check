@@ -12,15 +12,9 @@ jobs:
         uses: actions/setup-node@v1
         with:
           node-version: 14.x
-        id: go
 
       - name: Checkout code
         uses: actions/checkout@v2
-
-      - name: Set workdir
-        run: |
-          echo "WORKDIR=$GITHUB_WORKSPACE/covaxsf" >> $GITHUB_ENV
-          cd $GITHUB_WORKSPACE/covaxsf
 
       - name: Install dependencies
         run: |
@@ -30,7 +24,7 @@ jobs:
         run: |
           cd $WORKDIR
           yarn compile
-          
+
   deploy-prod:
     name: Deploy
     runs-on: ubuntu-latest
@@ -41,9 +35,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Set workdir and image tag
+      - name: Set image tag
         run: |
-          echo "WORKDIR=$GITHUB_WORKSPACE/covaxsf" >> $GITHUB_ENV
           echo "IMAGE_SHA=${GITHUB_SHA:0:7}" >> $GITHUB_ENV
 
       - name: Set environment variables
@@ -65,7 +58,7 @@ jobs:
 
       - name: Build and push container to ECR
         run: |
-          cd $WORKDIR
+          cd $GITHUB_WORKSPACE
           docker build -t ${ECR_REPOSITORY}:${IMAGE_SHA} .
           docker push ${ECR_REPOSITORY}:${IMAGE_SHA}
 
