@@ -37,7 +37,7 @@ const client = new Twitter({
   access_token_secret: TWITTER_ACCESS_TOKEN_SECRET || "",
 });
 
-const tweetFooter = `\n\nBook now at myturn.ca.gov. #TeamVaccine #VaccinateALL58`;
+const tweetFooter = `\nmyturn.ca.gov. #COVID19 #TeamVaccine #VaccinateALL58 #BayArea`;
 
 export function sendAvailableAtLocation(
   location: VaccinationLocation,
@@ -45,11 +45,11 @@ export function sendAvailableAtLocation(
   slotsWithAvailability: LocationAvailableSlotsResponseSlot[]
 ) {
   return sendChatAlert(
-    `Up to ${slotsWithAvailability.length} are available at ${location.name}!
-  
-The next available date is ${dayjs(availabilityDate.date).format(
+    `New appointments are available at ${location.name}!
+
+The next available date (${dayjs(availabilityDate.date).format(
       "dddd MMMM DD, YYYY"
-    )}.`,
+    )}) has up to ${slotsWithAvailability.length} slots available.`,
     location.location
   );
 }
