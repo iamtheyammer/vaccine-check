@@ -1,9 +1,9 @@
-import { Location } from "./api/locationSearch";
+import { VaccinationLocation } from "./api/locationSearch";
 import { LocationAvailabilityDate } from "./api/getLocationAvailableDates";
 import {
   sendAvailableAtLocation,
   sendNoLongerAvailableAtLocation,
-} from "../telegram";
+} from "../twitter";
 import { LocationAvailableSlotsResponseSlot } from "./api/getLocationAvailableSlots";
 
 class State {
@@ -26,19 +26,23 @@ class State {
   }
 
   markLocationAsAvailable(
-    location: Location,
+    location: VaccinationLocation,
     availabilityDate: LocationAvailabilityDate,
     slotsWithAvailability: LocationAvailableSlotsResponseSlot[]
   ) {
     // notify if this changed
     if (!this.locationIsAvailable(location.extId)) {
-      sendAvailableAtLocation(location, availabilityDate, slotsWithAvailability);
+      sendAvailableAtLocation(
+        location,
+        availabilityDate,
+        slotsWithAvailability
+      );
     }
 
     this.globalAvailability[location.extId] = true;
   }
 
-  markLocationAsUnavailable(location: Location) {
+  markLocationAsUnavailable(location: VaccinationLocation) {
     if (this.locationIsAvailable(location.extId)) {
       sendNoLongerAvailableAtLocation(location);
     }

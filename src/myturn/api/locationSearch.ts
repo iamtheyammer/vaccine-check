@@ -1,7 +1,7 @@
 import client from "./client";
 import dayjs from "dayjs";
 
-export interface Location {
+export interface VaccinationLocation {
   displayAddress: string;
   distanceInMeters: number;
   extId: string;
@@ -26,7 +26,7 @@ export interface Location {
 export interface LocationSearchResponse {
   eligible: boolean;
   vaccineData: string;
-  locations: Location[];
+  locations: VaccinationLocation[];
 }
 
 async function searchLocations(

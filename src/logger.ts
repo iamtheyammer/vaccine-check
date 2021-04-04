@@ -1,5 +1,27 @@
 import * as winston from "winston";
 
+const transports: winston.transport[] = [
+  new winston.transports.File({
+    filename: "logs/log.log",
+    format: winston.format.json(),
+  }),
+];
+
+switch (process.env.NODE_ENV) {
+  case "development": {
+    transports.push(
+      new winston.transports.Console({ format: winston.format.cli() })
+    );
+    break;
+  }
+  case "production": {
+    transports.push(
+      new winston.transports.Console({ format: winston.format.json() })
+    );
+    break;
+  }
+}
+
 export function createLogger(name: string) {
   return winston.createLogger({
     level: "info",
@@ -7,12 +29,6 @@ export function createLogger(name: string) {
     defaultMeta: {
       service: name,
     },
-    transports: [
-      new winston.transports.Console({ format: winston.format.cli() }),
-      new winston.transports.File({
-        filename: "logs/log.log",
-        format: winston.format.json(),
-      }),
-    ],
+    transports,
   });
 }

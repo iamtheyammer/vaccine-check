@@ -1,6 +1,6 @@
 import dayjs from "dayjs";
 import searchLocations, {
-  Location,
+  VaccinationLocation,
   LocationSearchResponse,
 } from "./api/locationSearch";
 import getLocationAvailableDates, {
@@ -68,7 +68,7 @@ async function runCheck() {
   }
 }
 
-async function queryLocation(location: Location) {
+async function queryLocation(location: VaccinationLocation) {
   const { extId, name } = location;
   let availability: LocationAvailabilityResponse;
   try {
