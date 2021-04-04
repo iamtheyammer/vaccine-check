@@ -5,49 +5,109 @@ import {
   sendNoLongerAvailableAtLocation,
 } from "../twitter";
 import { LocationAvailableSlotsResponseSlot } from "./api/getLocationAvailableSlots";
+import dynamoClient from "../dynamo/client";
+import { unmarshall } from "@aws-sdk/util-dynamodb";
+import { createLogger } from "../logger";
+import { AvailableLocationsTableRow } from "../dynamo/types";
+
+const logger = createLogger("state-dynamodb");
 
 class State {
-  private readonly globalAvailability: {
-    [locationExtId: string]: boolean;
-  } = {};
+  async locationIsAvailable(locationExtId: string): Promise<boolean> {
+    // get single row with primary key
+    const queryResult = await dynamoClient.executeStatement({
+      Statement: `SELECT * FROM "covaxsf-availablelocations" WHERE locationExtId = ? AND available = true`,
+      Parameters: [{ S: locationExtId }],
+    });
 
-  locationIsAvailable(locationExtId: string): boolean {
-    return this.globalAvailability[locationExtId];
+    return queryResult.Items ? queryResult.Items.length > 0 : false;
   }
 
-  anyLocationIsAvailable(): boolean {
-    return Object.values(this.globalAvailability).some((v) => v);
+  async getAvailableLocations(): Promise<AvailableLocationsTableRow[]> {
+    // scan with filter expression
+    const queryResult = await dynamoClient.executeStatement({
+      Statement: `SELECT * FROM "covaxsf-availablelocations" WHERE available = true`,
+    });
+    return queryResult.Items
+      ? (queryResult.Items.map((i) =>
+          unmarshall(i)
+        ) as AvailableLocationsTableRow[])
+      : [];
   }
 
-  markAllAsUnavailable() {
-    Object.keys(this.globalAvailability).forEach(
-      (k) => (this.globalAvailability[k] = false)
+  async markAllAsUnavailable(availableLocationExtIds?: string[]) {
+    // if no optional param, scan for all rows with true
+    // then update all to mark as false
+
+    logger.info(
+      `Marking all locations as unavailable`,
+      availableLocationExtIds
     );
+
+    if (!availableLocationExtIds) {
+      const queryResult = await dynamoClient.executeStatement({
+        Statement: `SELECT * FROM "covaxsf-availablelocations" WHERE available = true`,
+      });
+
+      if (queryResult.Items) {
+        availableLocationExtIds = queryResult.Items.map(
+          (i) => unmarshall(i) as AvailableLocationsTableRow
+        )
+          .filter((i) => i.availability)
+          .map((i) => i.locationExtId);
+      } else {
+        availableLocationExtIds = [];
+      }
+    }
+
+    await dynamoClient.batchExecuteStatement({
+      Statements: availableLocationExtIds.map((l) => ({
+        Statement: `UPDATE "covaxsf-availablelocations" SET available = false WHERE locationExtId = ?`,
+        Parameters: [{ S: l }],
+      })),
+    });
+
+    // // mark availableLocationExtIds as false
+    // Object.keys(this.globalAvailability).forEach(
+    //   (k) => (this.globalAvailability[k] = false)
+    // );
   }
 
-  markLocationAsAvailable(
+  async markLocationAsAvailable(
     location: VaccinationLocation,
     availabilityDate: LocationAvailabilityDate,
     slotsWithAvailability: LocationAvailableSlotsResponseSlot[]
   ) {
     // notify if this changed
-    if (!this.locationIsAvailable(location.extId)) {
-      sendAvailableAtLocation(
-        location,
-        availabilityDate,
-        slotsWithAvailability
-      );
-    }
+    if (!(await this.locationIsAvailable(location.extId))) {
+      logger.info(`Marking ${location.extId} as available`);
 
-    this.globalAvailability[location.extId] = true;
+      await Promise.all([
+        sendAvailableAtLocation(
+          location,
+          availabilityDate,
+          slotsWithAvailability
+        ),
+        dynamoClient.executeStatement({
+          Statement: `UPDATE "covaxsf-availablelocations" SET available = true WHERE locationExtId = ?`,
+          Parameters: [{ S: location.extId }],
+        }),
+      ]);
+    }
   }
 
-  markLocationAsUnavailable(location: VaccinationLocation) {
-    if (this.locationIsAvailable(location.extId)) {
-      sendNoLongerAvailableAtLocation(location);
-    }
+  async markLocationAsUnavailable(location: VaccinationLocation) {
+    if (await this.locationIsAvailable(location.extId)) {
+      logger.info(`Marking ${location.extId} as unavailable`);
 
-    this.globalAvailability[location.extId] = false;
+      await Promise.all([
+        sendNoLongerAvailableAtLocation(location),
+        dynamoClient.executeStatement({
+          Statement: `UPDATE "covaxsf-availablelocations" SET available = false WHERE locationExtId = ?`,
+          Parameters: [{ S: location.extId }],
+        }),
+      ]);
+    }
   }
 }
 

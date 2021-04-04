@@ -30,6 +30,13 @@ async function runCheck() {
   //   return;
   // }
 
+  const previouslyAvailableLocations = await state.getAvailableLocations();
+
+  logger.info(
+    `Dynamo reported ${previouslyAvailableLocations.length} previously available locations.`,
+    previouslyAvailableLocations
+  );
+
   const vaccineData =
     "WyJhM3F0MDAwMDAwMEN5SkJBQTAiLCJhM3F0MDAwMDAwMDFBZExBQVUiLCJhM3F0MDAwMDAwMDFBZE1BQVUiLCJhM3F0MDAwMDAwMDFBZ1VBQVUiLCJhM3F0MDAwMDAwMDFBZ1ZBQVUiLCJhM3F0MDAwMDAwMDFBc2FBQUUiXQ==";
 
@@ -59,16 +66,26 @@ async function runCheck() {
 
   if (availableLocations.length) {
     // run availability
-    availableLocations.forEach((l) => queryLocation(l));
-  } else if (state.anyLocationIsAvailable()) {
-    state.markAllAsUnavailable();
+    availableLocations.forEach((l) =>
+      queryLocation(
+        l,
+        previouslyAvailableLocations.some((pl) => pl.locationExtId === l.extId)
+      )
+    );
+  } else if (previouslyAvailableLocations.length) {
+    await state.markAllAsUnavailable(
+      previouslyAvailableLocations.map((l) => l.locationExtId)
+    );
     return;
   } else {
     return;
   }
 }
 
-async function queryLocation(location: VaccinationLocation) {
+async function queryLocation(
+  location: VaccinationLocation,
+  locationWasPreviouslyAvailable: boolean
+) {
   const { extId, name } = location;
   let availability: LocationAvailabilityResponse;
   try {
@@ -89,7 +106,9 @@ async function queryLocation(location: VaccinationLocation) {
       message: `No availability at ${name}.`,
       location,
     });
-    state.markLocationAsUnavailable(location);
+    if (locationWasPreviouslyAvailable) {
+      await state.markLocationAsUnavailable(location);
+    }
     return;
   }
 
@@ -120,7 +139,9 @@ async function queryLocation(location: VaccinationLocation) {
   }
 
   if (!availableSlotsReq.slotsWithAvailability) {
-    state.markLocationAsUnavailable(location);
+    if (locationWasPreviouslyAvailable) {
+      await state.markLocationAsUnavailable(location);
+    }
     logger.info({
       message: `No slots available at ${location.name}`,
       location,
@@ -129,7 +150,9 @@ async function queryLocation(location: VaccinationLocation) {
   }
 
   if (availableSlotsReq.slotsWithAvailability.length < 2) {
-    state.markLocationAsUnavailable(location);
+    if (locationWasPreviouslyAvailable) {
+      await state.markLocationAsUnavailable(location);
+    }
     logger.info({
       message: `Only one slot available at ${location.name}`,
       location,
@@ -152,7 +175,9 @@ async function queryLocation(location: VaccinationLocation) {
 
   if ("errorType" in slotReservation) {
     if (slotReservation.errorType === "location_no_capacity") {
-      state.markLocationAsUnavailable(location);
+      if (locationWasPreviouslyAvailable) {
+        await state.markLocationAsUnavailable(location);
+      }
       return;
     }
 
@@ -167,11 +192,14 @@ async function queryLocation(location: VaccinationLocation) {
   }
 
   // slot is available and unfortunately reserved to us for 15 mins :(
-  state.markLocationAsAvailable(
-    location,
-    dayToCheck,
-    availableSlotsReq.slotsWithAvailability
-  );
+  if (!locationWasPreviouslyAvailable) {
+    await state.markLocationAsAvailable(
+      location,
+      dayToCheck,
+      availableSlotsReq.slotsWithAvailability
+    );
+  }
+
   logger.info({
     message: `${availableSlotsReq.slotsWithAvailability.length} time slots available at ${location.name} (${location.extId}) on ${dayToCheck.date} at ${slotToReserve.localStartTime}.`,
     slotReservation,
