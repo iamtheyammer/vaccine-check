@@ -32,10 +32,10 @@ async function runCheck() {
 
   const previouslyAvailableLocations = await state.getAvailableLocations();
 
-  logger.info(
-    `Dynamo reported ${previouslyAvailableLocations.length} previously available locations.`,
-    previouslyAvailableLocations
-  );
+  logger.info({
+    message: `Dynamo reported ${previouslyAvailableLocations.length} previously available locations.`,
+    previouslyAvailableLocations,
+  });
 
   const vaccineData =
     "WyJhM3F0MDAwMDAwMEN5SkJBQTAiLCJhM3F0MDAwMDAwMDFBZExBQVUiLCJhM3F0MDAwMDAwMDFBZE1BQVUiLCJhM3F0MDAwMDAwMDFBZ1VBQVUiLCJhM3F0MDAwMDAwMDFBZ1ZBQVUiLCJhM3F0MDAwMDAwMDFBc2FBQUUiXQ==";

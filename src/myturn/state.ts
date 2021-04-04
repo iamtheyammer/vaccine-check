@@ -39,10 +39,10 @@ class State {
     // if no optional param, scan for all rows with true
     // then update all to mark as false
 
-    logger.info(
-      `Marking all locations as unavailable`,
-      availableLocationExtIds
-    );
+    logger.info({
+      message: `Marking all locations as unavailable`,
+      availableLocationExtIds,
+    });
 
     if (!availableLocationExtIds) {
       const queryResult = await dynamoClient.executeStatement({
