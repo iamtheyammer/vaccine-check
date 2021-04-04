@@ -22,7 +22,6 @@ jobs:
 
       - name: Build
         run: |
-          cd $WORKDIR
           yarn compile
 
   deploy-prod:
