@@ -37,7 +37,7 @@ const client = new Twitter({
   access_token_secret: TWITTER_ACCESS_TOKEN_SECRET || "",
 });
 
-const tweetFooter = `\nmyturn.ca.gov. #COVID19 #TeamVaccine #VaccinateALL58 #BayArea`;
+const tweetFooter = `\n\n#COVID19 #TeamVaccine #VaccinateALL58 #BayArea`;
 
 export function sendAvailableAtLocation(
   location: VaccinationLocation,
@@ -49,7 +49,9 @@ export function sendAvailableAtLocation(
 
 The next available date (${dayjs(availabilityDate.date).format(
       "dddd MMMM DD, YYYY"
-    )}) has up to ${slotsWithAvailability.length} slots available.`,
+    )}) has up to ${slotsWithAvailability.length} slots available.
+
+Schedule now at myturn.ca.gov.`,
     location.location
   );
 }
