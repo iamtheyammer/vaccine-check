@@ -4,10 +4,12 @@ import searchLocations, {
   LocationSearchResponse,
 } from "./api/locationSearch";
 import getLocationAvailableDates, {
+  LocationAvailabilityDate,
   LocationAvailabilityResponse,
 } from "./api/getLocationAvailableDates";
 import getLocationAvailableSlots, {
   LocationAvailableSlotsResponse,
+  LocationAvailableSlotsResponseSlot,
 } from "./api/getLocationAvailableSlots";
 import reserveSlot from "./api/reserveSlot";
 import { createLogger } from "../logger";
@@ -112,17 +114,58 @@ async function queryLocation(
     return;
   }
 
-  // check slot availability
-  const dayToCheck = availableDays[availableDays.length - 1];
-
   logger.info({
-    message: `Availability at ${name} on ${availableDays
+    message: `Availability at ${location.name} on ${availableDays
       .map((d) => d.date)
       .join(", ")}!`,
     availableDays,
     location,
   });
 
+  // check all days until we find a match or run out of days.
+  availableDays.reverse();
+
+  let oneDayIsAvailable = false;
+  for (const day of availableDays) {
+    const { slotsWithAvailability, selectedSlot } = await queryLocationOnDate(
+      location,
+      day
+    );
+
+    if (slotsWithAvailability && selectedSlot) {
+      oneDayIsAvailable = true;
+      logger.info(
+        `${name} is available on ${day.date}, no longer searching for available dates.`
+      );
+      // ping available
+      // slot is available and unfortunately reserved to us for 15 mins :(
+      state.markLocationAsAvailable(location, day, slotsWithAvailability);
+      logger.info({
+        message: `${slotsWithAvailability.length} time slots available at ${location.name} (${location.extId}) on ${day.date} at ${selectedSlot.localStartTime}.`,
+        selectedSlot,
+      });
+
+      break;
+    }
+  }
+
+  if (!oneDayIsAvailable) {
+    logger.info({
+      message: `No days were available at ${location.name} (${location.extId})`,
+      location,
+    });
+    state.markLocationAsUnavailable(location);
+  }
+}
+
+async function queryLocationOnDate(
+  location: VaccinationLocation,
+  dayToCheck: LocationAvailabilityDate
+): Promise<{
+  slotsWithAvailability?: LocationAvailableSlotsResponseSlot[];
+  selectedSlot?: LocationAvailableSlotsResponseSlot;
+}> {
+  // check slot availability
   let availableSlotsReq: LocationAvailableSlotsResponse;
   try {
     availableSlotsReq = await getLocationAvailableSlots(
@@ -135,29 +178,23 @@ async function queryLocation(
       error: e,
       location,
     });
-    return;
+    return {};
   }
 
   if (!availableSlotsReq.slotsWithAvailability) {
-    if (locationWasPreviouslyAvailable) {
-      await state.markLocationAsUnavailable(location);
-    }
     logger.info({
       message: `No slots available at ${location.name}`,
       location,
     });
-    return;
+    return {};
   }
 
   if (availableSlotsReq.slotsWithAvailability.length < 2) {
-    if (locationWasPreviouslyAvailable) {
-      await state.markLocationAsUnavailable(location);
-    }
     logger.info({
       message: `Only one slot available at ${location.name}`,
       location,
     });
-    return;
+    return {};
   }
 
   // slot appears to be available, reserve it
@@ -175,10 +212,7 @@ async function queryLocation(
 
   if ("errorType" in slotReservation) {
     if (slotReservation.errorType === "location_no_capacity") {
-      if (locationWasPreviouslyAvailable) {
-        await state.markLocationAsUnavailable(location);
-      }
-      return;
+      return {};
     }
 
     logger.warn({
@@ -188,24 +222,15 @@ async function queryLocation(
       dayToCheck,
       slotToReserve,
     });
-    return;
+    return {};
   }
 
-  // slot is available and unfortunately reserved to us for 15 mins :(
-  if (!locationWasPreviouslyAvailable) {
-    await state.markLocationAsAvailable(
-      location,
-      dayToCheck,
-      availableSlotsReq.slotsWithAvailability
-    );
-  }
-
-  logger.info({
-    message: `${availableSlotsReq.slotsWithAvailability.length} time slots available at ${location.name} (${location.extId}) on ${dayToCheck.date} at ${slotToReserve.localStartTime}.`,
-    slotReservation,
-  });
+  return {
+    slotsWithAvailability: availableSlotsReq.slotsWithAvailability,
+    selectedSlot: slotToReserve,
+  };
 }
 
 runCheck();
 
-setInterval(runCheck, 60000);
+setInterval(runCheck, 150000);
