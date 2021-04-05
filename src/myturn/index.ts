@@ -200,4 +200,4 @@ async function queryLocationOnDate(
 
 runCheck();
 
-setInterval(runCheck, 60000);
+setInterval(runCheck, 150000);
