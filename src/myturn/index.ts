@@ -11,7 +11,7 @@ import getLocationAvailableSlots, {
   LocationAvailableSlotsResponse,
   LocationAvailableSlotsResponseSlot,
 } from "./api/getLocationAvailableSlots";
-import reserveSlot from "./api/reserveSlot";
+import reserveSlot, {ReserveSlotResponse} from "./api/reserveSlot";
 import { createLogger } from "../logger";
 
 import state from "./state";
@@ -185,12 +185,25 @@ async function queryLocationOnDate(
       availableSlotsReq.slotsWithAvailability.length - 1
     ];
 
-  const slotReservation = await reserveSlot(
-    dayToCheck.date,
-    slotToReserve.localStartTime,
-    location.extId,
-    dayToCheck.vaccineData
-  );
+  let slotReservation: ReserveSlotResponse
+  try {
+    slotReservation = await reserveSlot(
+      dayToCheck.date,
+      slotToReserve.localStartTime,
+      location.extId,
+      dayToCheck.vaccineData
+    );
+  } catch(e) {
+    logger.error({
+      message: `Error reserving a slot at ${location.name} (${location.extId})`,
+      error: e,
+      dayToCheck,
+      slotToReserve,
+      location
+    });
+    return {}
+  }
+
 
   if ("errorType" in slotReservation) {
     if (slotReservation.errorType === "location_no_capacity") {
