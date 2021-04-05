@@ -47,7 +47,7 @@ export function sendAvailableAtLocation(
   return sendChatAlert(
     `New appointments are available at ${location.name}!
 
-${dayjs(availabilityDate.date).format("dddd MMMM DD, YYYY")}) has up to ${
+${dayjs(availabilityDate.date).format("dddd MMMM DD, YYYY")} has up to ${
       slotsWithAvailability.length
     } slots available.
 
