@@ -15,6 +15,7 @@ import reserveSlot from "./api/reserveSlot";
 import { createLogger } from "../logger";
 
 import state from "./state";
+import { CHECK_INTERVAL } from "../env";
 
 const logger = createLogger("myturn");
 
@@ -214,4 +215,4 @@ async function queryLocationOnDate(
 
 runCheck();
 
-setInterval(runCheck, 150000);
+setInterval(runCheck, CHECK_INTERVAL);
