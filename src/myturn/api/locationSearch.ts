@@ -36,7 +36,10 @@ async function searchLocations(
     method: "POST",
     url: "locations/search",
     data: {
-      location: { lat: 37.5549479, lng: -122.2710602 },
+      location: {
+        lat: 37.6187585,
+        lng: -122.3845135,
+      },
       fromDate: dayjs().format("YYYY-MM-DD"),
       vaccineData,
       locationQuery: { includePools: ["default"] },
