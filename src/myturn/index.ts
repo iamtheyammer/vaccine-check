@@ -4,6 +4,7 @@ import searchLocations, {
   LocationSearchResponse,
 } from "./api/locationSearch";
 import getLocationAvailableDates, {
+  LocationAvailabilityDate,
   LocationAvailabilityResponse,
 } from "./api/getLocationAvailableDates";
 import getLocationAvailableSlots, {
@@ -93,17 +94,34 @@ async function queryLocation(location: VaccinationLocation) {
     return;
   }
 
-  // check slot availability
-  const dayToCheck = availableDays[availableDays.length - 1];
-
   logger.info({
-    message: `Availability at ${name} on ${availableDays
+    message: `Availability at ${location.name} on ${availableDays
       .map((d) => d.date)
       .join(", ")}!`,
     availableDays,
     location,
   });
 
+  // check all days until we find a match or run out of days.
+  availableDays.reverse();
+
+  for (const day of availableDays) {
+    const dayWasAvailable = await queryLocationOnDate(location, day);
+
+    if (dayWasAvailable) {
+      logger.info(
+        `${name} is available on ${day.date}, no longer searching for available dates.`
+      );
+      break;
+    }
+  }
+}
+
+async function queryLocationOnDate(
+  location: VaccinationLocation,
+  dayToCheck: LocationAvailabilityDate
+): Promise<boolean> {
+  // check slot availability
   let availableSlotsReq: LocationAvailableSlotsResponse;
   try {
     availableSlotsReq = await getLocationAvailableSlots(
@@ -116,7 +134,7 @@ async function queryLocation(location: VaccinationLocation) {
       error: e,
       location,
     });
-    return;
+    return false;
   }
 
   if (!availableSlotsReq.slotsWithAvailability) {
@@ -125,7 +143,7 @@ async function queryLocation(location: VaccinationLocation) {
       message: `No slots available at ${location.name}`,
       location,
     });
-    return;
+    return false;
   }
 
   if (availableSlotsReq.slotsWithAvailability.length < 2) {
@@ -134,7 +152,7 @@ async function queryLocation(location: VaccinationLocation) {
       message: `Only one slot available at ${location.name}`,
       location,
     });
-    return;
+    return false;
   }
 
   // slot appears to be available, reserve it
@@ -153,7 +171,7 @@ async function queryLocation(location: VaccinationLocation) {
   if ("errorType" in slotReservation) {
     if (slotReservation.errorType === "location_no_capacity") {
       state.markLocationAsUnavailable(location);
-      return;
+      return false;
     }
 
     logger.warn({
@@ -163,7 +181,7 @@ async function queryLocation(location: VaccinationLocation) {
       dayToCheck,
       slotToReserve,
     });
-    return;
+    return false;
   }
 
   // slot is available and unfortunately reserved to us for 15 mins :(
@@ -176,6 +194,8 @@ async function queryLocation(location: VaccinationLocation) {
     message: `${availableSlotsReq.slotsWithAvailability.length} time slots available at ${location.name} (${location.extId}) on ${dayToCheck.date} at ${slotToReserve.localStartTime}.`,
     slotReservation,
   });
+
+  return true;
 }
 
 runCheck();

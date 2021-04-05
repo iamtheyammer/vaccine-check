@@ -47,9 +47,9 @@ export function sendAvailableAtLocation(
   return sendChatAlert(
     `New appointments are available at ${location.name}!
 
-The next available date (${dayjs(availabilityDate.date).format(
-      "dddd MMMM DD, YYYY"
-    )}) has up to ${slotsWithAvailability.length} slots available.
+${dayjs(availabilityDate.date).format("dddd MMMM DD, YYYY")}) has up to ${
+      slotsWithAvailability.length
+    } slots available.
 
 Schedule now at myturn.ca.gov.`,
     location.location
