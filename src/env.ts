@@ -6,3 +6,13 @@ export const {
   TWITTER_ACCESS_TOKEN_KEY,
   TWITTER_ACCESS_TOKEN_SECRET,
 } = process.env;
+
+export let CHECK_INTERVAL = 150000;
+
+if (process.env.CHECK_INTERVAL) {
+  const checkInterval = parseInt(process.env.CHECK_INTERVAL);
+
+  if (!isNaN(checkInterval) && checkInterval > 0) {
+    CHECK_INTERVAL = checkInterval;
+  }
+}

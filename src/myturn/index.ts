@@ -11,10 +11,11 @@ import getLocationAvailableSlots, {
   LocationAvailableSlotsResponse,
   LocationAvailableSlotsResponseSlot,
 } from "./api/getLocationAvailableSlots";
-import reserveSlot from "./api/reserveSlot";
+import reserveSlot, { ReserveSlotResponse } from "./api/reserveSlot";
 import { createLogger } from "../logger";
 
 import state from "./state";
+import { CHECK_INTERVAL } from "../env";
 
 const logger = createLogger("myturn");
 
@@ -127,10 +128,21 @@ async function queryLocation(
 
   let oneDayIsAvailable = false;
   for (const day of availableDays) {
-    const { slotsWithAvailability, selectedSlot } = await queryLocationOnDate(
-      location,
-      day
-    );
+    const {
+      slotsWithAvailability,
+      selectedSlot,
+      error,
+    } = await queryLocationOnDate(location, day);
+
+    if (error) {
+      logger.warn({
+        message: `Error when querying location on date, not marking anything.`,
+        error,
+        location,
+        day,
+      });
+      continue;
+    }
 
     if (slotsWithAvailability && selectedSlot) {
       oneDayIsAvailable = true;
@@ -164,6 +176,7 @@ async function queryLocationOnDate(
 ): Promise<{
   slotsWithAvailability?: LocationAvailableSlotsResponseSlot[];
   selectedSlot?: LocationAvailableSlotsResponseSlot;
+  error?: Error;
 }> {
   // check slot availability
   let availableSlotsReq: LocationAvailableSlotsResponse;
@@ -178,7 +191,7 @@ async function queryLocationOnDate(
       error: e,
       location,
     });
-    return {};
+    return { error: e };
   }
 
   if (!availableSlotsReq.slotsWithAvailability) {
@@ -203,12 +216,24 @@ async function queryLocationOnDate(
       availableSlotsReq.slotsWithAvailability.length - 1
     ];
 
-  const slotReservation = await reserveSlot(
-    dayToCheck.date,
-    slotToReserve.localStartTime,
-    location.extId,
-    dayToCheck.vaccineData
-  );
+  let slotReservation: ReserveSlotResponse;
+  try {
+    slotReservation = await reserveSlot(
+      dayToCheck.date,
+      slotToReserve.localStartTime,
+      location.extId,
+      dayToCheck.vaccineData
+    );
+  } catch (e) {
+    logger.error({
+      message: `Error reserving a slot at ${location.name} (${location.extId})`,
+      error: e,
+      dayToCheck,
+      slotToReserve,
+      location,
+    });
+    return { error: e };
+  }
 
   if ("errorType" in slotReservation) {
     if (slotReservation.errorType === "location_no_capacity") {
@@ -233,4 +258,4 @@ async function queryLocationOnDate(
 
 runCheck();
 
-setInterval(runCheck, 150000);
+setInterval(runCheck, CHECK_INTERVAL);
