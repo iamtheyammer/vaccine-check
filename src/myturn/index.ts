@@ -23,7 +23,14 @@ const logger = createLogger("myturn");
 async function runCheck() {
   // sets our cookies in the Cookie Jar.
   // required: 403s if we don't do this.
-  await getHomePage();
+  try {
+    await getHomePage();
+  } catch (e) {
+    logger.error({
+      message: `Error getting home page`,
+      error: e,
+    });
+  }
 
   const previouslyAvailableLocations = await state.getAvailableLocations();
 
