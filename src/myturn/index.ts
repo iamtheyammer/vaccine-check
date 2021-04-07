@@ -40,10 +40,10 @@ async function runCheck() {
     // northSearchResponse = await searchLocations(eligibilityResponse.vaccineData);
     [northSearchResponse, southSearchResponse] = await Promise.all([
       // north
-      searchLocations(vaccineData, { lat: 37.844124, lng: -122.332101}),
+      searchLocations(vaccineData, { lat: 37.844124, lng: -122.332101 }),
       // south
-      searchLocations(vaccineData, { lat: 37.412755, lng: -122.035193})
-    ])
+      searchLocations(vaccineData, { lat: 37.412755, lng: -122.035193 }),
+    ]);
   } catch (e) {
     console.log(e);
     logger.log({
@@ -55,14 +55,17 @@ async function runCheck() {
   }
 
   const locationExtIds = new Set();
-  const allLocations: VaccinationLocation[] = [...northSearchResponse.locations, ...southSearchResponse.locations];
+  const allLocations: VaccinationLocation[] = [
+    ...northSearchResponse.locations,
+    ...southSearchResponse.locations,
+  ];
 
-  const locations = allLocations.filter(l => {
-    if(l.type === "ThirdPartyBooking") {
+  const locations = allLocations.filter((l) => {
+    if (l.type === "ThirdPartyBooking") {
       return false;
     }
 
-    if(!locationExtIds.has(l.extId)) {
+    if (!locationExtIds.has(l.extId)) {
       locationExtIds.add(l.extId);
       return true;
     }

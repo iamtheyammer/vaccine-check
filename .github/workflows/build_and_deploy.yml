@@ -7,7 +7,6 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     steps:
-
       - name: Set up Node.js 14.x
         uses: actions/setup-node@v1
         with:
@@ -30,7 +29,6 @@ jobs:
     needs: build
     if: endsWith(github.ref, 'heads/main')
     steps:
-
       - name: Checkout code
         uses: actions/checkout@v2
 

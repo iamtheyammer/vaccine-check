@@ -91,18 +91,18 @@ class State {
         dynamoClient.updateItem({
           Key: {
             locationExtId: {
-              S: location.extId
-            }
+              S: location.extId,
+            },
           },
           TableName: "covaxsf-availablelocations",
           UpdateExpression: "SET #A = :a",
           ExpressionAttributeNames: {
-            "#A": "available"
+            "#A": "available",
           },
           ExpressionAttributeValues: {
-            ":a": { BOOL: true}
-          }
-        })
+            ":a": { BOOL: true },
+          },
+        }),
       ]);
     }
   }

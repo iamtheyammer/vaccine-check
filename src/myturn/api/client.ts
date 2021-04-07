@@ -1,7 +1,7 @@
 import axios, { AxiosRequestConfig } from "axios";
 import { HTTP_PROXY, MYTURN_COOKIE } from "../../env";
 import axiosCookieJarSupport from "axios-cookiejar-support";
-import {CookieJar} from "tough-cookie";
+import { CookieJar } from "tough-cookie";
 
 const clientConfig: AxiosRequestConfig = {
   baseURL: "https://api.myturn.ca.gov/public/",
@@ -32,7 +32,7 @@ if (HTTP_PROXY) {
 const client = axios.create(clientConfig);
 
 // tough cookie support
-const cookieJar = new CookieJar()
+const cookieJar = new CookieJar();
 axiosCookieJarSupport(client);
 client.defaults.jar = cookieJar;
 // silences invalid domain errors that stop the requests from working.
