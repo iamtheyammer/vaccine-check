@@ -45,7 +45,6 @@ async function runCheck() {
       searchLocations(vaccineData, { lat: 37.412755, lng: -122.035193 }),
     ]);
   } catch (e) {
-    console.log(e);
     logger.log({
       level: "error",
       message: "Error searching for locations, will retry",
