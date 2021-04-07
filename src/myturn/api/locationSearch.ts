@@ -1,5 +1,6 @@
 import client from "./client";
 import dayjs from "dayjs";
+import {CookieJar} from "tough-cookie";
 
 export interface VaccinationLocation {
   displayAddress: string;
@@ -30,16 +31,14 @@ export interface LocationSearchResponse {
 }
 
 async function searchLocations(
-  vaccineData: string
-): Promise<LocationSearchResponse> {
+  vaccineData: string,
+  location: { lat: number, lng: number }
+  ): Promise<LocationSearchResponse> {
   const resp = await client({
     method: "POST",
     url: "locations/search",
     data: {
-      location: {
-        lat: 37.6187585,
-        lng: -122.3845135,
-      },
+      location,
       fromDate: dayjs().format("YYYY-MM-DD"),
       vaccineData,
       locationQuery: { includePools: ["default"] },
