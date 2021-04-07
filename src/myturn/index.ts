@@ -16,31 +16,29 @@ import { createLogger } from "../logger";
 
 import state from "./state";
 import { CHECK_INTERVAL } from "../env";
+import getHomePage from "./api/homePage";
 
 const logger = createLogger("myturn");
 
 async function runCheck() {
-  // let eligibilityResponse: EligibilityResponse;
-  // try {
-  //   eligibilityResponse = await checkEligibility();
-  // } catch (e) {
-  //   console.log(`Error checking for eligibility`, e);
-  //   return;
-  // }
-  //
-  // if (!eligibilityResponse.eligible) {
-  //   console.log("You are not eligible at this time");
-  //   return;
-  // }
+  // sets our cookies in the Cookie Jar.
+  // required: 403s if we don't do this.
+  await getHomePage();
 
   const vaccineData =
     "WyJhM3F0MDAwMDAwMEN5SkJBQTAiLCJhM3F0MDAwMDAwMDFBZExBQVUiLCJhM3F0MDAwMDAwMDFBZE1BQVUiLCJhM3F0MDAwMDAwMDFBZ1VBQVUiLCJhM3F0MDAwMDAwMDFBZ1ZBQVUiLCJhM3F0MDAwMDAwMDFBc2FBQUUiXQ==";
 
-  let searchResponse: LocationSearchResponse;
+  let northSearchResponse, southSearchResponse: LocationSearchResponse;
   try {
-    // searchResponse = await searchLocations(eligibilityResponse.vaccineData);
-    searchResponse = await searchLocations(vaccineData);
+    // northSearchResponse = await searchLocations(eligibilityResponse.vaccineData);
+    [northSearchResponse, southSearchResponse] = await Promise.all([
+      // north
+      searchLocations(vaccineData, { lat: 37.844124, lng: -122.332101}),
+      // south
+      searchLocations(vaccineData, { lat: 37.412755, lng: -122.035193})
+    ])
   } catch (e) {
+    console.log(e);
     logger.log({
       level: "error",
       message: "Error searching for locations, will retry",
@@ -49,20 +47,31 @@ async function runCheck() {
     return;
   }
 
-  const availableLocations = searchResponse.locations.filter(
-    (l) => l.type !== "ThirdPartyBooking"
-  );
+  const locationExtIds = new Set();
+  const allLocations = [...northSearchResponse.locations, ...southSearchResponse.locations];
 
-  logger.info({
-    message: `Found ${availableLocations.length} locations. (${dayjs().format(
-      "YYYY-MM-DDTHH:mm:ss"
-    )})`,
-    locations: availableLocations,
+  const locations = allLocations.filter(l => {
+    if(l.type === "ThirdPartyBooking") {
+      return false;
+    }
+
+    if(!locationExtIds.has(l.extId)) {
+      locationExtIds.add(l.extId);
+      return true;
+    }
+    return false;
   });
 
-  if (availableLocations.length) {
+  logger.info({
+    message: `Found ${locations.length} unique locations. (${dayjs().format(
+      "YYYY-MM-DDTHH:mm:ss"
+    )})`,
+    locations,
+  });
+
+  if (locations.length) {
     // run availability
-    availableLocations.forEach((l) => queryLocation(l));
+    locations.forEach((l) => queryLocation(l));
   } else if (state.anyLocationIsAvailable()) {
     state.markAllAsUnavailable();
     return;
