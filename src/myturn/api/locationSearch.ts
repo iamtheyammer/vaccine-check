@@ -1,6 +1,5 @@
 import client from "./client";
 import dayjs from "dayjs";
-import { CookieJar } from "tough-cookie";
 
 export interface VaccinationLocation {
   displayAddress: string;
