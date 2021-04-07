@@ -80,7 +80,7 @@ class State {
   ) {
     // notify if this changed
     if (!(await this.locationIsAvailable(location.extId))) {
-      logger.info(`Marking ${location.extId} as available`);
+      logger.info(`Marking ${location.name} (${location.extId}) as available`);
 
       await Promise.all([
         sendAvailableAtLocation(
@@ -88,10 +88,21 @@ class State {
           availabilityDate,
           slotsWithAvailability
         ),
-        dynamoClient.executeStatement({
-          Statement: `UPDATE "covaxsf-availablelocations" SET available = true WHERE locationExtId = ?`,
-          Parameters: [{ S: location.extId }],
-        }),
+        dynamoClient.updateItem({
+          Key: {
+            locationExtId: {
+              S: location.extId
+            }
+          },
+          TableName: "covaxsf-availablelocations",
+          UpdateExpression: "SET #A = :a",
+          ExpressionAttributeNames: {
+            "#A": "available"
+          },
+          ExpressionAttributeValues: {
+            ":a": { BOOL: true}
+          }
+        })
       ]);
     }
   }
