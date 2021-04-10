@@ -268,6 +268,18 @@ async function queryLocationOnDate(
     return {};
   }
 
+  if (dayjs().isAfter(dayjs(`${dayToCheck.date}T${slotToReserve.localStartTime}`))) {
+
+    logger.warn({
+      message: `Error booking a slot at ${location.name} for ${slotToReserve.localStartTime} on ${dayToCheck.date}: Current time is after slot time.`,
+      location,
+      slotReservation,
+      dayToCheck,
+      slotToReserve,
+    });
+    return {};
+  }
+
   return {
     slotsWithAvailability: availableSlotsReq.slotsWithAvailability,
     selectedSlot: slotToReserve,
