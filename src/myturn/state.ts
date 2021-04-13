@@ -2,6 +2,7 @@ import { VaccinationLocation } from "./api/locationSearch";
 import { LocationAvailabilityDate } from "./api/getLocationAvailableDates";
 import {
   sendAvailableAtLocation,
+  sendNoLocationsAvailable,
   sendNoLongerAvailableAtLocation,
 } from "../twitter";
 import { LocationAvailableSlotsResponseSlot } from "./api/getLocationAvailableSlots";
@@ -66,6 +67,8 @@ class State {
         Parameters: [{ S: l }],
       })),
     });
+
+    await sendNoLocationsAvailable();
 
     // // mark availableLocationExtIds as false
     // Object.keys(this.globalAvailability).forEach(

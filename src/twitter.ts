@@ -62,6 +62,10 @@ export function sendNoLongerAvailableAtLocation(location: VaccinationLocation) {
   );
 }
 
+export function sendNoLocationsAvailable() {
+  return sendChatAlert("No more appointments are available right now.");
+}
+
 export async function sendChatAlert(
   message: string,
   location?: { lng: string; lat: string }
