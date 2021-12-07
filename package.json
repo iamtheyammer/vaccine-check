@@ -11,6 +11,7 @@
     "axios-cookiejar-support": "^1.0.1",
     "dayjs": "^1.10.4",
     "tough-cookie": "^4.0.0",
+    "truncate": "^3.0.0",
     "twitter": "^1.7.1",
     "winston": "^3.3.3"
   },
@@ -27,6 +28,7 @@
   "scripts": {
     "format": "prettier --write src/",
     "start": "nodemon -r dotenv/config --exec ts-node src/index.ts",
+    "debug": "node --inspect-brk -r dotenv/config -r ts-node/register src/index.ts",
     "compile": "ncc build src/index.ts -o dist/ -m"
   }
 }

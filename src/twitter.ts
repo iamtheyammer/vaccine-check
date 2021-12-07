@@ -11,6 +11,8 @@ import { VaccinationLocation } from "./myturn/api/locationSearch";
 import { LocationAvailabilityDate } from "./myturn/api/getLocationAvailableDates";
 import { LocationAvailableSlotsResponseSlot } from "./myturn/api/getLocationAvailableSlots";
 import dayjs from "dayjs";
+import truncate from "truncate";
+import { VaccinationLocationType } from "./myturn";
 
 const logger = createLogger("twitter");
 
@@ -37,17 +39,60 @@ const client = new Twitter({
   access_token_secret: TWITTER_ACCESS_TOKEN_SECRET || "",
 });
 
-const tweetFooter = `\n\n#COVID19 #TeamVaccine #VaccinateALL58 #BayArea`;
+const tweetFooter = `\n\n#COVID19 #TeamVaccine #BayArea`;
 
 export function sendAvailableAtLocation(
+  locationType: VaccinationLocationType,
+  location: VaccinationLocation,
+  availabilityDate: LocationAvailabilityDate,
+  slotsWithAvailability: LocationAvailableSlotsResponseSlot[]
+) {
+  switch (locationType) {
+    case "booster":
+      return sendBoosterAvailableAtLocation(
+        location,
+        availabilityDate,
+        slotsWithAvailability
+      );
+    case "firstVax":
+      return sendFirstVaxAvailableAtLocation(
+        location,
+        availabilityDate,
+        slotsWithAvailability
+      );
+  }
+}
+
+function sendFirstVaxAvailableAtLocation(
   location: VaccinationLocation,
   availabilityDate: LocationAvailabilityDate,
   slotsWithAvailability: LocationAvailableSlotsResponseSlot[]
 ) {
   return sendChatAlert(
-    `New appointments are available at ${location.name}!
+    `💉 First/second dose 💉
 
-${dayjs(availabilityDate.date).format("dddd MMMM DD, YYYY")} has up to ${
+New appointments are available at ${truncate(location.name, 84)} on ${dayjs(
+      availabilityDate.date
+    ).format("dddd MMMM DD, YYYY")}. There are up to ${
+      slotsWithAvailability.length
+    } slots available.
+
+Schedule now at myturn.ca.gov.`,
+    location.location
+  );
+}
+
+function sendBoosterAvailableAtLocation(
+  location: VaccinationLocation,
+  availabilityDate: LocationAvailabilityDate,
+  slotsWithAvailability: LocationAvailableSlotsResponseSlot[]
+) {
+  return sendChatAlert(
+    `⬆️ Booster ⬆️
+
+New appointments are available at ${truncate(location.name, 99)} on ${dayjs(
+      availabilityDate.date
+    ).format("dddd MMMM DD, YYYY")}. There are up to ${
       slotsWithAvailability.length
     } slots available.
 

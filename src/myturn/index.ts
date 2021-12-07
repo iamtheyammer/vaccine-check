@@ -17,8 +17,15 @@ import { createLogger } from "../logger";
 import state from "./state";
 import { CHECK_INTERVAL, DEBUG_ONE_LOCATION } from "../env";
 import getHomePage from "./api/homePage";
+import { AvailableLocationsTableRow } from "../dynamo/types";
+import {
+  sendAvailableAtLocation,
+  sendNoLongerAvailableAtLocation,
+} from "../twitter";
 
 const logger = createLogger("myturn");
+
+export type VaccinationLocationType = "firstVax" | "booster";
 
 async function runCheck() {
   // sets our cookies in the Cookie Jar.
@@ -32,24 +39,46 @@ async function runCheck() {
     });
   }
 
-  const previouslyAvailableLocations = await state.getAvailableLocations();
+  const previouslyAvailableLocations: {
+    [locationExtId: string]: AvailableLocationsTableRow;
+  } = (await state.getAvailableLocations()).reduce((acc, cur) => {
+    acc[cur.locationExtId] = cur;
+    return acc;
+  }, {} as { [locationExtId: string]: AvailableLocationsTableRow });
 
   logger.info({
-    message: `Dynamo reported ${previouslyAvailableLocations.length} previously available locations.`,
+    message: `Dynamo reported ${
+      Object.keys(previouslyAvailableLocations).length
+    } previously available locations.`,
     previouslyAvailableLocations,
   });
 
   const vaccineData =
     "WyJhM3F0MDAwMDAwMEN5SkJBQTAiLCJhM3F0MDAwMDAwMDFBZExBQVUiLCJhM3F0MDAwMDAwMDFBZE1BQVUiLCJhM3F0MDAwMDAwMDFBZ1VBQVUiLCJhM3F0MDAwMDAwMDFBZ1ZBQVUiLCJhM3F0MDAwMDAwMDFBc2FBQUUiXQ==";
+  const vaccineDataBooster =
+    "WyJhM3F0MDAwMDAwMFBRRW1BQU8iLCJhM3F0MDAwMDAwMFBRRWhBQU8iLCJhM3F0MDAwMDAwMFBSRWlBQU8iLCJhM3F0MDAwMDAwMFBSRWVBQU8iLCJhM3F0MDAwMDAwMFBSRVpBQTQiXQ==";
 
-  let northSearchResponse, southSearchResponse: LocationSearchResponse;
+  const northLocation = { lat: 37.844124, lng: -122.332101 };
+  const southLocation = { lat: 37.412755, lng: -122.035193 };
+
+  let northSearchResponse,
+    northBoosterSearchResponse,
+    southSearchResponse,
+    southBoosterSearchResponse: LocationSearchResponse;
   try {
     // northSearchResponse = await searchLocations(eligibilityResponse.vaccineData);
-    [northSearchResponse, southSearchResponse] = await Promise.all([
+    [
+      northSearchResponse,
+      northBoosterSearchResponse,
+      southSearchResponse,
+      southBoosterSearchResponse,
+    ] = await Promise.all([
       // north
-      searchLocations(vaccineData, { lat: 37.844124, lng: -122.332101 }),
+      searchLocations(vaccineData, northLocation),
+      searchLocations(vaccineDataBooster, northLocation),
       // south
-      searchLocations(vaccineData, { lat: 37.412755, lng: -122.035193 }),
+      searchLocations(vaccineData, southLocation),
+      searchLocations(vaccineDataBooster, southLocation),
     ]);
   } catch (e) {
     logger.log({
@@ -60,29 +89,42 @@ async function runCheck() {
     return;
   }
 
-  const locationExtIds = new Set();
+  const locationExtIds: Set<string> = new Set();
+  const locationBoosterExtIds: Set<string> = new Set();
+
   const allLocations: VaccinationLocation[] = [
     ...northSearchResponse.locations,
     ...southSearchResponse.locations,
   ];
 
-  const locations = allLocations.filter((l) => {
-    if (l.type === "ThirdPartyBooking") {
-      return false;
-    }
+  const allLocationsBooster: VaccinationLocation[] = [
+    ...northBoosterSearchResponse.locations,
+    ...southBoosterSearchResponse.locations,
+  ];
 
-    // de-dupe
-    if (!locationExtIds.has(l.extId)) {
-      locationExtIds.add(l.extId);
-      return true;
-    }
-    return false;
-  });
+  const locationsFilterFunc =
+    (locationSet: Set<string>) => (l: VaccinationLocation) => {
+      if (l.type === "ThirdPartyBooking") {
+        return false;
+      }
+
+      // de-dupe
+      if (!locationSet.has(l.extId)) {
+        locationSet.add(l.extId);
+        return true;
+      }
+      return false;
+    };
+
+  const locations = allLocations.filter(locationsFilterFunc(locationExtIds));
+  const boosterLocations = allLocationsBooster.filter(
+    locationsFilterFunc(locationBoosterExtIds)
+  );
 
   logger.info({
-    message: `Found ${locations.length} unique locations. (${dayjs().format(
-      "YYYY-MM-DDTHH:mm:ss"
-    )})`,
+    message: `Found ${locations.length} first-shot and ${
+      boosterLocations.length
+    } booster locations. (${dayjs().format("YYYY-MM-DDTHH:mm:ss")})`,
     locations,
   });
 
@@ -92,34 +134,78 @@ async function runCheck() {
       const l = locations[0];
       queryLocation(
         l,
-        previouslyAvailableLocations.some((pl) => pl.locationExtId === l.extId)
+        "firstVax",
+        previouslyAvailableLocations[l.extId]
+          ? previouslyAvailableLocations[l.extId].firstVax
+          : false
       );
       logger.debug({
         message:
-          "Stopped checking locations because DEBUG_ONE_LOCATION is set to true.",
+          "Stopped checking firstVax locations because DEBUG_ONE_LOCATION is set to true.",
       });
     } else {
       locations.forEach((l) =>
         queryLocation(
           l,
-          previouslyAvailableLocations.some(
-            (pl) => pl.locationExtId === l.extId
-          )
+          "firstVax",
+          previouslyAvailableLocations[l.extId]
+            ? previouslyAvailableLocations[l.extId].firstVax
+            : false
         )
       );
     }
-  } else if (previouslyAvailableLocations.length) {
-    await state.markAllAsUnavailable(
-      previouslyAvailableLocations.map((l) => l.locationExtId)
-    );
-    return;
-  } else {
-    return;
+  } else if (Object.keys(previouslyAvailableLocations).length) {
+    const previouslyAvailableFirstVaxLocations = Object.values(
+      previouslyAvailableLocations
+    ).filter((l) => l.firstVax);
+    if (previouslyAvailableFirstVaxLocations.length) {
+      await state.batchMarkAsFirstVaxUnavailable(
+        previouslyAvailableFirstVaxLocations.map((l) => l.locationExtId)
+      );
+    }
+  }
+
+  if (boosterLocations.length) {
+    // run availability for boosters
+    if (DEBUG_ONE_LOCATION === "true") {
+      const l = boosterLocations[0];
+      queryLocation(
+        l,
+        "booster",
+        previouslyAvailableLocations[l.extId]
+          ? previouslyAvailableLocations[l.extId].booster
+          : false
+      );
+      logger.debug({
+        message:
+          "Stopped checking booster locations because DEBUG_ONE_LOCATION is set to true.",
+      });
+    } else {
+      boosterLocations.forEach((l) =>
+        queryLocation(
+          l,
+          "booster",
+          previouslyAvailableLocations[l.extId]
+            ? previouslyAvailableLocations[l.extId].booster
+            : false
+        )
+      );
+    }
+  } else if (Object.keys(previouslyAvailableLocations).length) {
+    const previouslyAvailableBoosterLocations = Object.values(
+      previouslyAvailableLocations
+    ).filter((l) => l.booster);
+    if (previouslyAvailableBoosterLocations.length) {
+      await state.batchMarkAsBoosterUnavailable(
+        previouslyAvailableBoosterLocations.map((l) => l.locationExtId)
+      );
+    }
   }
 }
 
 async function queryLocation(
   location: VaccinationLocation,
+  locationType: VaccinationLocationType,
   locationWasPreviouslyAvailable: boolean
 ) {
   const { extId, name } = location;
@@ -128,7 +214,7 @@ async function queryLocation(
     availability = await getLocationAvailableDates(extId, location.vaccineData);
   } catch (e) {
     logger.error({
-      message: `Error searching for availability at ${name}, will retry`,
+      message: `Error searching for availability at ${name} (${locationType}), will retry`,
       error: e,
       location,
     });
@@ -139,11 +225,14 @@ async function queryLocation(
 
   if (!availableDays.length) {
     logger.info({
-      message: `No availability at ${name}.`,
+      message: `No availability at ${name} (${locationType}).`,
       location,
     });
     if (locationWasPreviouslyAvailable) {
-      await state.markLocationAsUnavailable(location);
+      await Promise.all([
+        state.markLocationAsUnavailable(location.extId, locationType),
+        sendNoLongerAvailableAtLocation(location),
+      ]);
     }
     return;
   }
@@ -161,11 +250,8 @@ async function queryLocation(
 
   let oneDayIsAvailable = false;
   for (const day of availableDays) {
-    const {
-      slotsWithAvailability,
-      selectedSlot,
-      error,
-    } = await queryLocationOnDate(location, day);
+    const { slotsWithAvailability, selectedSlot, error } =
+      await queryLocationOnDate(location, day);
 
     if (error) {
       logger.warn({
@@ -184,12 +270,22 @@ async function queryLocation(
       );
       // ping available
       // slot is available and unfortunately reserved to us for 15 mins :(
-      state.markLocationAsAvailable(location, day, slotsWithAvailability);
       logger.info({
         message: `${slotsWithAvailability.length} time slots available at ${location.name} (${location.extId}) on ${day.date} at ${selectedSlot.localStartTime}.`,
         selectedSlot,
       });
 
+      if (!locationWasPreviouslyAvailable) {
+        await Promise.all([
+          state.markLocationAsAvailable(location.extId, locationType),
+          sendAvailableAtLocation(
+            locationType,
+            location,
+            availableDays[0],
+            slotsWithAvailability
+          ),
+        ]);
+      }
       break;
     }
   }
@@ -199,7 +295,7 @@ async function queryLocation(
       message: `No days were available at ${location.name} (${location.extId})`,
       location,
     });
-    state.markLocationAsUnavailable(location);
+    await state.markLocationAsUnavailable(location.extId, locationType);
   }
 }
 

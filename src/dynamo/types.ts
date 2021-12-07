@@ -1,4 +1,5 @@
 export interface AvailableLocationsTableRow {
   locationExtId: string;
-  availability: boolean;
+  booster: boolean;
+  firstVax: boolean;
 }
