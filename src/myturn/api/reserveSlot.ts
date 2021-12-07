@@ -1,19 +1,13 @@
 import client from "./client";
+import { AxiosError } from "axios";
 
 export interface ReserveSlotError {
   errorType: string;
 }
 
 export interface ReserveSlotSuccessResponse {
-  reservationId: string;
+  reservationIds: string[];
   vaccineData: string;
-  vaccineDetails: {
-    numberOfDoses: 1;
-    daysBetweenDoses: {
-      min: 1;
-      max: 2;
-    };
-  };
 }
 
 export type ReserveSlotResponse = ReserveSlotError | ReserveSlotSuccessResponse;
@@ -34,16 +28,17 @@ export default async function reserveSlot(
         locationExtId,
         vaccineData,
         dose: 1,
+        groupSize: 1,
         url: "https://myturn.ca.gov/appointment-select",
       },
     });
 
     return resp.data as ReserveSlotResponse;
   } catch (e) {
-    if (!e.response) {
+    if (!(e as AxiosError).response) {
       throw e;
     }
 
-    return e.response.data as ReserveSlotError;
+    return (e as AxiosError).response!.data as ReserveSlotError;
   }
 }

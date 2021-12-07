@@ -15,7 +15,7 @@ import reserveSlot, { ReserveSlotResponse } from "./api/reserveSlot";
 import { createLogger } from "../logger";
 
 import state from "./state";
-import { CHECK_INTERVAL } from "../env";
+import { CHECK_INTERVAL, DEBUG_ONE_LOCATION } from "../env";
 import getHomePage from "./api/homePage";
 
 const logger = createLogger("myturn");
@@ -71,6 +71,7 @@ async function runCheck() {
       return false;
     }
 
+    // de-dupe
     if (!locationExtIds.has(l.extId)) {
       locationExtIds.add(l.extId);
       return true;
@@ -87,12 +88,26 @@ async function runCheck() {
 
   if (locations.length) {
     // run availability
-    locations.forEach((l) =>
+    if (DEBUG_ONE_LOCATION === "true") {
+      const l = locations[0];
       queryLocation(
         l,
         previouslyAvailableLocations.some((pl) => pl.locationExtId === l.extId)
-      )
-    );
+      );
+      logger.debug({
+        message:
+          "Stopped checking locations because DEBUG_ONE_LOCATION is set to true.",
+      });
+    } else {
+      locations.forEach((l) =>
+        queryLocation(
+          l,
+          previouslyAvailableLocations.some(
+            (pl) => pl.locationExtId === l.extId
+          )
+        )
+      );
+    }
   } else if (previouslyAvailableLocations.length) {
     await state.markAllAsUnavailable(
       previouslyAvailableLocations.map((l) => l.locationExtId)
@@ -209,7 +224,7 @@ async function queryLocationOnDate(
       error: e,
       location,
     });
-    return { error: e };
+    return { error: e as Error };
   }
 
   if (!availableSlotsReq.slotsWithAvailability) {
@@ -250,7 +265,7 @@ async function queryLocationOnDate(
       slotToReserve,
       location,
     });
-    return { error: e };
+    return { error: e as Error };
   }
 
   if ("errorType" in slotReservation) {
@@ -268,8 +283,9 @@ async function queryLocationOnDate(
     return {};
   }
 
-  if (dayjs().isAfter(dayjs(`${dayToCheck.date}T${slotToReserve.localStartTime}`))) {
-
+  if (
+    dayjs().isAfter(dayjs(`${dayToCheck.date}T${slotToReserve.localStartTime}`))
+  ) {
     logger.warn({
       message: `Error booking a slot at ${location.name} for ${slotToReserve.localStartTime} on ${dayToCheck.date}: Current time is after slot time.`,
       location,

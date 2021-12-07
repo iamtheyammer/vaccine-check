@@ -40,8 +40,14 @@ async function searchLocations(
       location,
       fromDate: dayjs().format("YYYY-MM-DD"),
       vaccineData,
-      locationQuery: { includePools: ["default"] },
+      locationQuery: {
+        includePools: ["default", "COVID"],
+        includeTags: [],
+        excludeTags: [],
+      },
       doseNumber: 1,
+      groupSize: 1,
+      locationType: "CombinedBooking",
       url: "https://myturn.ca.gov/location-select",
     },
   });
